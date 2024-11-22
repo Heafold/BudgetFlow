@@ -16,16 +16,14 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                bat 'cd api && npm install'
+                bat 'npm install'  // Enlevé le cd api
             }
         }
         
         stage('Build Docker Image') {
             steps {
                 script {
-                    dir('api') {
-                        bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
-                    }
+                    bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."  // Enlevé le dir('api')
                 }
             }
         }
