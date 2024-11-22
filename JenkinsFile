@@ -1,0 +1,71 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_IMAGE = 'budgetflow'
+        DOCKER_TAG = 'latest'
+        MONGODB_URI = credentials('mongodb-uri')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                bat 'cd api && npm install'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    dir('api') {
+                        bat "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    // Créer le réseau Docker si il n'existe pas
+                    bat 'docker network create app-network || exit 0'
+                    
+                    // Arrêter et supprimer les anciens containers si ils existent
+                    bat 'docker rm -f mongodb || exit 0'
+                    bat 'docker rm -f budgetflow || exit 0'
+                    
+                    // Démarrer MongoDB
+                    bat '''
+                        docker run -d ^
+                        --name mongodb ^
+                        --network app-network ^
+                        -v mongodb_data:/data/db ^
+                        mongo:latest
+                    '''
+                    
+                    // Démarrer l'application
+                    bat """
+                        docker run -d ^
+                        --name budgetflow ^
+                        --network app-network ^
+                        -p 3000:3000 ^
+                        -e MONGODB_URI=%MONGODB_URI% ^
+                        ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
